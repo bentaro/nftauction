@@ -1,0 +1,39 @@
+nftchaincli tx nft mint eth 0x42447730b00Ea074121f2429a0654A10597e3a25 cosmos1vvfgwjhyjagq226v04d3evh63vwj3xmwqe4prl --from cosmos1yyhkkt89wywxr8qds243h0dl0w3a8hm8d6skpw
+
+nftchaincli tx nft transfer cosmos18y0px7at9t2dpt3rf9x3cndk57ny3vxsgd6uvd cosmos12jfl0rheaep7ycly9dzjcd2ew8q5llywa6klae eth 0x42447730b00Ea074121f2429a0654A10597e3a25 --from cosmos18y0px7at9t2dpt3rf9x3cndk57ny3vxsgd6uvd
+
+nftchaincli tx nft transfer cosmos12jfl0rheaep7ycly9dzjcd2ew8q5llywa6klae cosmos18y0px7at9t2dpt3rf9x3cndk57ny3vxsgd6uvd eth 0x42447730b00Ea074121f2429a0654A10597e3a25 --from cosmos12jfl0rheaep7ycly9dzjcd2ew8q5llywa6klae
+
+
+nftchaincli tx send cosmos1pz978wwy6afa4ve34rjswfuvnw4vwxx50572ta 100 token
+
+nftchaincli tx send 100 token cosmos1pz978wwy6afa4ve34rjswfuvnw4vwxx50572ta
+
+nftchaincli query account cosmos1yn0vtkkysl45qnkrmu5nux4lqcydswyzs2u04y
+nftchaincli query account cosmos1r4mplej5kkrcla4y4l0xlnv3a4p5mmdxr8yx4w
+
+nftchaincli keys list
+
+
+cosmos1yn0vtkkysl45qnkrmu5nux4lqcydswyzs2u04y
+cosmos1r4mplej5kkrcla4y4l0xlnv3a4p5mmdxr8yx4w
+
+nftchaincli query nft token ethnft 0x42447730b00Ea074121f2429a0654A10597e3a25
+nftchaincli tx nft mint ethnft 0x42447730b00Ea074121f2429a0654A10597e3a25 cosmos1yn0vtkkysl45qnkrmu5nux4lqcydswyzs2u04y --from cosmos1r4mplej5kkrcla4y4l0xlnv3a4p5mmdxr8yx4w
+nftchaincli query nft owner cosmos1yn0vtkkysl45qnkrmu5nux4lqcydswyzs2u04y
+
+nftchaincli tx wasm store contract.wasm --from cosmos1r4mplej5kkrcla4y4l0xlnv3a4p5mmdxr8yx4w
+nftchaincli tx wasm instantiate 1 "{\"denom\": \"token\"}" --from cosmos1r4mplej5kkrcla4y4l0xlnv3a4p5mmdxr8yx4w --label "test" 
+nftchaincli query wasm contract-state smart cosmos18vd8fpwxzck93qlwghaj6arh4p7c5n89uzcee5 "{\"config\": {}}"
+nftchaincli tx wasm execute cosmos18vd8fpwxzck93qlwghaj6arh4p7c5n89uzcee5 "{\"config\": {}}"  --from cosmos1r4mplej5kkrcla4y4l0xlnv3a4p5mmdxr8yx4w
+
+nftchaincli query tx 8CD8934DCFEB07DAFFEA84EF4BC876D1C052450A5454F1B7B3F66E3D23156275
+
+Attribute { key: .to_string(), value: .to_string(), },
+Attribute { key: .to_string(), value: .to_string(), },
+
+
+
+nftchaincli tx wasm execute cosmos18vd8fpwxzck93qlwghaj6arh4p7c5n89uzcee5 "{\"create_poll\": {\"quorum_percentage\": 0,\"description\": \"first poll\",\"start_height\": 1,\"end_height\": 6000}}" --from cosmos1r4mplej5kkrcla4y4l0xlnv3a4p5mmdxr8yx4w
+
+nftchaincli query wasm contract-state smart cosmos18vd8fpwxzck93qlwghaj6arh4p7c5n89uzcee5 "{\"poll\": {\"poll_id\": 1}}"
