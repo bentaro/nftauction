@@ -89,10 +89,10 @@ pub fn stake_voting_tokens<S: Storage, A: Api, Q: Querier>(
         .find(|coin| coin.denom.eq(&state.denom))
         .unwrap();
 
-    token_manager.token_balance += sent_funds.amount;
+    token_manager.token_balance =  token_manager.token_balance + sent_funds.amount;
 
-    let staked_tokens = state.staked_tokens.u128() + sent_funds.amount.u128();
-    state.staked_tokens = Uint128::from(staked_tokens);
+    state.staked_tokens = state.staked_tokens + sent_funds.amount;
+
     config(&mut deps.storage).save(&state)?;
 
     bank(&mut deps.storage).save(key, &token_manager)?;

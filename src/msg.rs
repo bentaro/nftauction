@@ -18,7 +18,7 @@ pub enum HandleMsg {
     },
     StakeVotingTokens {},
     WithdrawVotingTokens {
-        amount: Option<Uint128>,
+        amount: Option<Uint128>,　
     },
     CreatePoll {
         quorum_percentage: Option<u8>,
