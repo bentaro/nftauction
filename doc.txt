@@ -18,9 +18,16 @@ nftchaincli keys list
 cosmos1yn0vtkkysl45qnkrmu5nux4lqcydswyzs2u04y
 cosmos1r4mplej5kkrcla4y4l0xlnv3a4p5mmdxr8yx4w
 
+
+
 nftchaincli query nft token ethnft 0x42447730b00Ea074121f2429a0654A10597e3a25
-nftchaincli tx nft mint ethnft 0x42447730b00Ea074121f2429a0654A10597e3a25 cosmos1yn0vtkkysl45qnkrmu5nux4lqcydswyzs2u04y --from cosmos1r4mplej5kkrcla4y4l0xlnv3a4p5mmdxr8yx4w
-nftchaincli query nft owner cosmos1yn0vtkkysl45qnkrmu5nux4lqcydswyzs2u04y
+
+nftchaincli tx nft mint ethnft 0x42447730b00Ea074121f2429a0654A10597e3a25 cosmos1xuzc05t7gax9w9vfq7q8whyzz038g3kqthpj2m --from cosmos1xuzc05t7gax9w9vfq7q8whyzz038g3kqthpj2m
+
+nftchaincli tx nft transfer cosmos1c9pyrgcxn9978hk8l9hw2d3685u443e25eun6z cosmos1xuzc05t7gax9w9vfq7q8whyzz038g3kqthpj2m ethnft 0x42447730b00Ea074121f2429a0654A10597e3a25 --from cosmos1xuzc05t7gax9w9vfq7q8whyzz038g3kqthpj2m
+
+
+nftchaincli query nft owner cosmos1xuzc05t7gax9w9vfq7q8whyzz038g3kqthpj2m
 
 nftchaincli tx wasm store contract.wasm --from cosmos1r4mplej5kkrcla4y4l0xlnv3a4p5mmdxr8yx4w
 nftchaincli tx wasm instantiate 1 "{\"denom\": \"token\"}" --from cosmos1r4mplej5kkrcla4y4l0xlnv3a4p5mmdxr8yx4w --label "test" 
@@ -37,3 +44,10 @@ Attribute { key: .to_string(), value: .to_string(), },
 nftchaincli tx wasm execute cosmos18vd8fpwxzck93qlwghaj6arh4p7c5n89uzcee5 "{\"create_poll\": {\"quorum_percentage\": 0,\"description\": \"first poll\",\"start_height\": 1,\"end_height\": 6000}}" --from cosmos1r4mplej5kkrcla4y4l0xlnv3a4p5mmdxr8yx4w
 
 nftchaincli query wasm contract-state smart cosmos18vd8fpwxzck93qlwghaj6arh4p7c5n89uzcee5 "{\"poll\": {\"poll_id\": 1}}"
+
+
+nftchaincli tx send user1 cosmos1pz978wwy6afa4ve34rjswfuvnw4vwxx50572ta 100 token --from cosmos17slc3zrs86a6kmptyjmhyrqv4m89nat009hy23
+nftchaincli tx nft mint token ethnft 0x42447730b00Ea074121f2429a0653A10597e3a25 cosmos17slc3zrs86a6kmptyjmhyrqv4m89nat009hy23 --from cosmos17slc3zrs86a6kmptyjmhyrqv4m89nat009hy23
+nftchaincli tx nft mint ethnft 0x42447730b00Ea074121f2429a0654A10597e3a25 cosmos1yn0vtkkysl45qnkrmu5nux4lqcydswyzs2u04y --from cosmos1r4mplej5kkrcla4y4l0xlnv3a4p5mmdxr8yx4w
+nftchaincli query nft owner cosmos1yn0vtkkysl45qnkrmu5nux4lqcydswyzs2u04y cosmos1r4mplej5kkrcla4y4l0xlnv3a4p5mmdxr8yx4w
+nftchaincli query wasm contract-state smart cosmos18vd8fpwxzck93qlwghaj6arh4p7c5n89uzcee5 "{\"config\": {}}"

@@ -1,4 +1,5 @@
 use crate::coin_helpers::assert_sent_sufficient_coin;
+
 use crate::msg::{
     CreatePollResponse, HandleMsg, InitMsg, PollResponse, QueryMsg, TokenStakeResponse,
 };
@@ -8,8 +9,9 @@ use crate::state::{
 use cosmwasm_std::{
     coin, to_binary, Api, Attribute, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Env, Extern,
     HandleResponse, HandleResult, HumanAddr, InitResponse, InitResult, Querier, StdError,
-    StdResult, Storage, Uint128, MessageInfo
+    StdResult, Storage, Uint128, MessageInfo, NftMsg,
 };
+
 
 pub const VOTING_TOKEN: &str = "voting_token";
 pub const DEFAULT_END_HEIGHT_BLOCKS: &u64 = &100_800_u64;
@@ -64,6 +66,8 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             start_height,
             end_height,
         ),
+        //handle for Nfts
+        HandleMsg::GetNft { denom, id, } => get_nft(deps, env, info, denom, id),
     }
 }
 
@@ -112,7 +116,7 @@ pub fn withdraw_voting_tokens<S: Storage, A: Api, Q: Querier>(
     let key = sender_address_raw.as_slice();
 
     if let Some(mut token_manager) = bank_read(&deps.storage).may_load(key)? {
-        let largest_staked = locked_amount(&sender_address_raw, deps);
+        let largest_staked = locked_amount(&sender_address_raw,d deps);
         let withdraw_amount = match amount {
             Some(amount) => Some(amount.u128()),
             None => Some(token_manager.token_balance.u128()),
@@ -497,4 +501,31 @@ fn token_balance<S: Storage, A: Api, Q: Querier>(
     };
 
     to_binary(&resp)
+}
+
+pub fn get_nft<S: Storage, A: Api, Q: Querier>(
+    _deps: &mut Extern<S, A, Q>,
+    env: Env,
+    info: MessageInfo,
+    denom: String,
+    id: String,
+) -> HandleResult {
+    let sender_address = info.sender;
+    let contract_address = env.contract.address;
+    let denom = &denom.to_string();
+    let id = &id.to_string();
+
+    let attributes = vec![Attribute { key: "id".to_string(), value: id.to_string(), }, Attribute { key: "to".to_string(), value: sender_address.to_string(), },];
+
+    let r = HandleResponse {
+        messages: vec![CosmosMsg::Nft(NftMsg::Transfer {
+            sender: contract_address,
+            recipient: sender_address,
+            denom: denom.to_string(),
+            id: id.to_string(),
+        })],
+        attributes,
+        data: None,
+    };
+    Ok(r)
 }
