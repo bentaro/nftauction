@@ -7,14 +7,14 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 static CONFIG_KEY: &[u8] = b"config";
-static POLL_KEY: &[u8] = b"polls";
+static LISTING_KEY: &[u8] = b"listings";
 static BANK_KEY: &[u8] = b"bank";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub denom: String,
     pub owner: CanonicalAddr,
-    pub poll_count: u64,
+    pub list_count: u64,
     pub staked_tokens: Uint128,
 }
 
@@ -22,13 +22,14 @@ pub struct State {
 pub struct TokenManager {
     pub token_balance: Uint128,             // total staked balance
     pub locked_tokens: Vec<(u64, Uint128)>, //maps poll_id to weight voted
-    pub participated_polls: Vec<u64>,       // poll_id
+    pub locked_nfts: Vec<(u64, String)>,
+    pub participated_bids: Vec<u64>,       // poll_id
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Voter {
-    pub vote: String,
-    pub weight: Uint128,
+pub struct Bidder {
+    pub token_id: String,
+    pub price: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -40,17 +41,16 @@ pub enum PollStatus {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Poll {
+pub struct Listing {
     pub creator: CanonicalAddr,
-    pub status: PollStatus,
-    pub quorum_percentage: Option<u8>,
-    pub yes_votes: Uint128,
-    pub no_votes: Uint128,
-    pub voters: Vec<CanonicalAddr>,
-    pub voter_info: Vec<Voter>,
+    pub status: BidStatus,
+    pub highest_bid: Uint128,
+    pub minimum_bid : Uint128,
+    pub bidders : Vec<CanonicalAddr>,
     pub end_height: u64,
     pub start_height: Option<u64>,
     pub description: String,
+    pub denom: String,
 }
 
 pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, State> {
@@ -61,12 +61,12 @@ pub fn config_read<S: Storage>(storage: &S) -> ReadonlySingleton<S, State> {
     singleton_read(storage, CONFIG_KEY)
 }
 
-pub fn poll<S: Storage>(storage: &mut S) -> Bucket<S, Poll> {
-    bucket(storage, POLL_KEY)
+pub fn poll<S: Storage>(storage: &mut S) -> Bucket<S, Listing> {
+    bucket(storage, LISTING_KEY)
 }
 
-pub fn poll_read<S: Storage>(storage: &S) -> ReadonlyBucket<S, Poll> {
-    bucket_read(storage, POLL_KEY)
+pub fn poll_read<S: Storage>(storage: &S) -> ReadonlyBucket<S, Listing> {
+    bucket_read(storage, LISTING_KEY)
 }
 
 pub fn bank<S: Storage>(storage: &mut S) -> Bucket<S, TokenManager> {
