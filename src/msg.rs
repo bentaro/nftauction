@@ -1,4 +1,4 @@
-use crate::state::PollStatus;
+use crate::state::ListingStatus;
 use cosmwasm_std::{HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -11,28 +11,28 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    CastVote {
-        poll_id: u64,
-        vote: String,
-        weight: Uint128,
+    Bid {
+        listing_id: u64,
+        price: Uint128,
     },
-    StakeVotingTokens {},
-    WithdrawVotingTokens {
+    WithdrawTokens {
         amount: Option<Uint128>,
     },
-    CreatePoll {
-        quorum_percentage: Option<u8>,
-        description: String,
+    List {
+        token_id: String,
+        denom: String,
+        minimum_bid : Uint128,
         start_height: Option<u64>,
         end_height: Option<u64>,
+        description: String,
     },
-    EndPoll {
-        poll_id: u64,
+    CloseList {
+        listing_id: u64,
     },
-    GetNft {
-        denom: String,
-        id: String,
-    },
+    // GetNft {
+    //     denom: String,
+    //     id: String,
+    // },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -40,13 +40,13 @@ pub enum HandleMsg {
 pub enum QueryMsg {
     Config {},
     TokenStake { address: HumanAddr },
-    Poll { poll_id: u64 },
+    Listing { listing_id: u64 },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
-pub struct PollResponse {
+pub struct ListingResponse {
     pub creator: HumanAddr,
-    pub status: PollStatus,
+    pub status: ListingStatus,
     pub quorum_percentage: Option<u8>,
     pub end_height: Option<u64>,
     pub start_height: Option<u64>,
@@ -54,13 +54,13 @@ pub struct PollResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
-pub struct CreatePollResponse {
-    pub poll_id: u64,
+pub struct CreateListingResponse {
+    pub listing_id: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
-pub struct PollCountResponse {
-    pub poll_count: u64,
+pub struct ListingCountResponse {
+    pub listing_count: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
