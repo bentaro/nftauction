@@ -14,26 +14,26 @@ static BANK_KEY: &[u8] = b"bank";
 pub struct State {
     pub denom: String,
     pub owner: CanonicalAddr,
-    pub list_count: u64,
+    pub listing_count: u64,
     pub staked_tokens: Uint128,
 }
 
 #[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TokenManager {
     pub token_balance: Uint128,             // total staked balance
-    pub locked_tokens: Vec<(u64, Uint128)>, //maps poll_id to weight voted
+    pub locked_tokens: Vec<(u64, Uint128)>, //maps listing_id to weight voted
     pub locked_nfts: Vec<(u64, String)>,
-    pub participated_bids: Vec<u64>,       // poll_id
+    pub participated_bids: Vec<u64>,       // listing_id
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Bidder {
-    pub token_id: String,
+    pub bidder: CanonicalAddr,
     pub price: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub enum PollStatus {
+pub enum ListingStatus {
     InProgress,
     Tally,
     Passed,
@@ -42,15 +42,17 @@ pub enum PollStatus {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Listing {
+    pub token_id: String,
+    pub denom: String,
     pub creator: CanonicalAddr,
     pub status: BidStatus,
     pub highest_bid: Uint128,
     pub minimum_bid : Uint128,
     pub bidders : Vec<CanonicalAddr>,
-    pub end_height: u64,
+    pub bidders_info : Vec<Bidder>,
     pub start_height: Option<u64>,
+    pub end_height: u64,
     pub description: String,
-    pub denom: String,
 }
 
 pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, State> {
@@ -61,11 +63,11 @@ pub fn config_read<S: Storage>(storage: &S) -> ReadonlySingleton<S, State> {
     singleton_read(storage, CONFIG_KEY)
 }
 
-pub fn poll<S: Storage>(storage: &mut S) -> Bucket<S, Listing> {
+pub fn listing<S: Storage>(storage: &mut S) -> Bucket<S, Listing> {
     bucket(storage, LISTING_KEY)
 }
 
-pub fn poll_read<S: Storage>(storage: &S) -> ReadonlyBucket<S, Listing> {
+pub fn listing_read<S: Storage>(storage: &S) -> ReadonlyBucket<S, Listing> {
     bucket_read(storage, LISTING_KEY)
 }
 
