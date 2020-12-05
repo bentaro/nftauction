@@ -4,7 +4,7 @@ use crate::msg::{
     CreateListingResponse, HandleMsg, InitMsg, ListingResponse, QueryMsg, TokenStakeResponse,
 };
 use crate::state::{
-    bank, bank_read, config, config_read, listing, listing_read, Listing, ListingStatus, State, Bidder,
+    bank, bank_read, config, config_read, listing, listing_read, Listing, BidStatus, State, Bidder,
 };
 use cosmwasm_std::{
     coin, to_binary, Api, Attribute, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Env, Extern,
@@ -22,7 +22,7 @@ const MAX_DESC_LENGTH: usize = 64;
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
-    info: MessageInfo,
+    //info: MessageInfo,
     msg: InitMsg,
 ) -> InitResult {
     let state = State {
@@ -45,15 +45,13 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     match msg {
         // HandleMsg::StakeVotingTokens {} => stake_voting_tokens(deps, env, info),
-        HandleMsg::WithdrawTokens { amount } => withdrawtokens(deps, env, info, amount),
+        HandleMsg::WithdrawTokens { amount } => withdraw_tokens(deps, env, info, amount),
         HandleMsg::Bid {
             listing_id,
             price
         } => bid(deps, env, info, listing_id, price),
-        HandleMsg::EndListing { listing_id } => end_listing(deps, env, info, listing_id),
+        HandleMsg::CloseBid { listing_id } => end_listing(deps, env, info, listing_id),
         HandleMsg::List {
-            token_id,
-            denom,
             minimum_bid,
             start_height,
             end_height,
@@ -67,8 +65,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             end_height,
             description,
         ),
-        //handle for Nfts
-        HandleMsg::GetNft { denom, id, } => get_nft(deps, env, info, denom, id),
     }
 }
 
@@ -117,7 +113,7 @@ pub fn withdraw_tokens<S: Storage, A: Api, Q: Querier>(
     let key = sender_address_raw.as_slice();
 
     if let Some(mut token_manager) = bank_read(&deps.storage).may_load(key)? {
-        let largest_staked = locked_amount(&sender_address_raw,d deps);
+        let largest_staked = locked_amount(&sender_address_raw, deps);
         let withdraw_amount = match amount {
             Some(amount) => Some(amount.u128()),
             None => Some(token_manager.token_balance.u128()),
@@ -191,7 +187,6 @@ pub fn create_listing<S: Storage, A: Api, Q: Querier>(
     end_height: Option<u64>,
     description: String,
 ) -> StdResult<HandleResponse> {
-    validate_quorum_percentage(quorum_percentage)?;
     validate_end_height(end_height, env.clone())?;
     validate_description(&description)?;
 
@@ -201,22 +196,32 @@ pub fn create_listing<S: Storage, A: Api, Q: Querier>(
     state.listing_count = listing_id;
 
     let sender_address_raw = deps.api.canonical_address(&info.sender)?;
-    let token_id = &info.sent_nfts.id;
-    let denom = &info.sent_nfts.denom;
+
+    // suspicious if work fine
+    let sent_nfts = info
+        .sent_nfts
+        .iter()
+        .next()
+        .unwrap();
+
+    let token_id = sent_nfts.id.to_string();
+    let denom = sent_nfts.denom.to_string();
 
     let new_listing = Listing {
         token_id,
         denom,
-        creator: sender_address_raw,
-        status: ListingStatus::InProgress,
+        creator: sender_address_raw.clone(),
+        status: BidStatus::InProgress,
         highest_bid: Uint128::zero(),
+        highest_bidder: sender_address_raw.clone(),
         minimum_bid,
         bidders: vec![],
         bidders_info: vec![],
         start_height,
-        end_height: end_height.unwrap_or(env.block.height + DEFAULT_END_HEIGHT_BLOCKS),
+        end_height: end_height.unwrap_or(env.block.height + *DEFAULT_END_HEIGHT_BLOCKS),
         description,
     };
+
     let key = state.listing_count.to_string();
     listing(&mut deps.storage).save(key.as_bytes(), &new_listing)?;
 
@@ -255,7 +260,7 @@ pub fn end_listing<S: Storage, A: Api, Q: Querier>(
         ));
     }
 
-    if a_listing.status != ListingStatus::InProgress {
+    if a_listing.status != BidStatus::InProgress {
         return Err(StdError::generic_err("Listing is not in progress"));
     }
 
@@ -267,57 +272,48 @@ pub fn end_listing<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("Voting period has not expired."));
     }
 
-    let mut no = 0u128;
-    let mut yes = 0u128;
-
-    for voter in &a_listing.voter_info {
-        if voter.vote == "yes" {
-            yes += voter.weight.u128();
-        } else {
-            no += voter.weight.u128();
-        }
-    }
-    let tallied_weight = yes + no;
-
-    let listing_status = ListingStatus::Rejected;
     let mut rejected_reason = "";
     let mut passed = false;
 
-    if tallied_weight > 0 {
-        let state = config_read(&deps.storage).load()?;
+    if a_listing.minimum_bid <= a_listing.highest_bid {
+        a_listing.status = BidStatus::Passed;
 
-        let staked_weight = deps
-            .querier
-            .query_balance(&env.contract.address, &state.denom)
-            .unwrap()
-            .amount
-            .u128();
-
-        if staked_weight == 0 {
-            return Err(StdError::generic_err("Nothing staked"));
-        }
-
-        let quorum = ((tallied_weight / staked_weight) * 100) as u8;
-        if a_listing.quorum_percentage.is_some() && quorum < a_listing.quorum_percentage.unwrap() {
-            // Quorum: More than quorum_percentage of the total staked tokens at the end of the voting
-            // period need to have participated in the vote.
-            rejected_reason = "Quorum not reached";
-        } else if yes > tallied_weight / 2 {
-            //Threshold: More than 50% of the tokens that participated in the vote
-            // (after excluding “Abstain” votes) need to have voted in favor of the proposal (“Yes”).
-            a_listing.status = ListingStatus::Passed;
-            passed = true;
-        } else {
-            rejected_reason = "Threshold not reached";
-        }
     } else {
-        rejected_reason = "Quorum not reached";
+        rejected_reason = "Bid price not reached minimum";
+        a_listing.highest_bidder = a_listing.creator.clone();
+        a_listing.status = BidStatus::Rejected;
     }
-    a_listing.status = listing_status;
     listing(&mut deps.storage).save(key.as_bytes(), &a_listing)?;
 
-    for voter in &a_listing.voters {
-        unlock_tokens(deps, voter, listing_id)?;
+    let creator_address = &a_listing.creator.clone();
+    let bidder_address = &a_listing.highest_bidder.clone();
+    let creator_key = creator_address.as_slice();
+    let bidder_key = bidder_address.as_slice();
+    let token_id = &a_listing.token_id;
+    let denom = &a_listing.denom;
+    let price = &a_listing.highest_bid;
+
+    let mut creator_token_manager = bank_read(&deps.storage).may_load(creator_key)?.unwrap_or_default();
+    let mut bidder_token_manager = bank_read(&deps.storage).may_load(bidder_key)?.unwrap_or_default();
+
+    bidder_token_manager.token_balance = Uint128::from(creator_token_manager.token_balance.u128() - price.u128());
+    creator_token_manager.token_balance = creator_token_manager.token_balance + price;
+
+    bank(&mut deps.storage).save(bidder_key, &bidder_token_manager)?;
+    bank(&mut deps.storage).save(creator_key, &creator_token_manager)?;
+
+    let contract_address_raw = deps.api.canonical_address(&env.contract.address)?;
+    send_nft(
+        &deps.api,
+        &contract_address_raw,
+        &bidder_address,
+        token_id.to_string(),
+        denom.to_string(),
+        "approve",
+    );
+
+    for bidder in &a_listing.bidders {
+        unlock_tokens(deps, bidder, listing_id)?;
     }
 
     let attributes = vec![
@@ -335,28 +331,28 @@ pub fn end_listing<S: Storage, A: Api, Q: Querier>(
     Ok(r)
 }
 
-// unlock voter's tokens in a given listing
+// unlock bidder's tokens in a given listing
 fn unlock_tokens<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    voter: &CanonicalAddr,
+    bidder: &CanonicalAddr,
     listing_id: u64,
 ) -> HandleResult {
-    let voter_key = &voter.as_slice();
-    let mut token_manager = bank_read(&deps.storage).load(voter_key).unwrap();
+    let bidder_key = &bidder.as_slice();
+    let mut token_manager = bank_read(&deps.storage).load(bidder_key).unwrap();
 
     // unlock entails removing the mapped listing_id, retaining the rest
     token_manager.locked_tokens.retain(|(k, _)| k != &listing_id);
-    bank(&mut deps.storage).save(voter_key, &token_manager)?;
+    bank(&mut deps.storage).save(bidder_key, &token_manager)?;
     Ok(HandleResponse::default())
 }
 
 // finds the largest locked amount in participated listings.
 fn locked_amount<S: Storage, A: Api, Q: Querier>(
-    voter: &CanonicalAddr,
+    bidder: &CanonicalAddr,
     deps: &mut Extern<S, A, Q>,
 ) -> u128 {
-    let voter_key = &voter.as_slice();
-    let token_manager = bank_read(&deps.storage).load(voter_key).unwrap();
+    let bidder_key = &bidder.as_slice();
+    let token_manager = bank_read(&deps.storage).load(bidder_key).unwrap();
     token_manager
         .locked_tokens
         .iter()
@@ -365,10 +361,11 @@ fn locked_amount<S: Storage, A: Api, Q: Querier>(
         .unwrap_or_default()
 }
 
-fn has_voted(voter: &CanonicalAddr, a_listing: &Listing) -> bool {
-    a_listing.voters.iter().any(|i| i == voter)
+fn has_bidden(bidder: &CanonicalAddr, a_listing: &Listing) -> bool {
+    a_listing.bidders.iter().any(|i| i == bidder)
 }
 
+// stake token and bid for listing
 pub fn bid<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
@@ -378,45 +375,57 @@ pub fn bid<S: Storage, A: Api, Q: Querier>(
 ) -> HandleResult {
     let sender_address_raw = deps.api.canonical_address(&info.sender)?;
     let listing_key = &listing_id.to_string();
+    let bank_key = sender_address_raw.as_slice();
     let state = config_read(&deps.storage).load()?;
+
     if listing_id == 0 || state.listing_count > listing_id {
         return Err(StdError::generic_err("Listing does not exist"));
     }
 
     let mut a_listing = listing(&mut deps.storage).load(listing_key.as_bytes())?;
 
-    if a_listing.status != ListingStatus::InProgress {
+    if a_listing.status != BidStatus::InProgress {
         return Err(StdError::generic_err("Listing is not in progress"));
     }
 
-    if has_voted(&sender_address_raw, &a_listing) {
-        return Err(StdError::generic_err("User has already voted."));
+    if price <= a_listing.highest_bid {
+        return Err(StdError::generic_err("Set price higher than highest bid"));
     }
 
-    let key = &sender_address_raw.as_slice();
-    let mut token_manager = bank_read(&deps.storage).may_load(key)?.unwrap_or_default();
+    if has_bidden(&sender_address_raw, &a_listing) {
+        return Err(StdError::generic_err("User has already bidden."));
+    }
 
-    if token_manager.token_balance < weight {
+    let sent_funds = info
+        .sent_funds
+        .iter()
+        .find(|coin| coin.denom.eq(&state.denom))
+        .unwrap();
+
+    let mut token_manager = bank_read(&deps.storage).may_load(bank_key)?.unwrap_or_default();
+
+    if token_manager.token_balance + sent_funds.amount < price {
         return Err(StdError::generic_err(
             "User does not have enough staked tokens.",
         ));
     }
-    token_manager.participated_listings.push(listing_id);
+    // add sent funds to token manager balance
+    token_manager.token_balance =  token_manager.token_balance + sent_funds.amount;
+    token_manager.participated_bids.push(listing_id);
     token_manager.locked_tokens.push((listing_id, price));
-    bank(&mut deps.storage).save(key, &token_manager)?;
+    bank(&mut deps.storage).save(bank_key, &token_manager)?;
 
+    // mutation for listing state
     a_listing.bidders.push(sender_address_raw.clone());
-
-    let bidder_info = Bidder { sender_address_raw, price};
-
-    a_listing.voter_info.push(voter_info);
+    let bidder_info = Bidder { bidder: sender_address_raw.clone(), price};
+    a_listing.bidders_info.push(bidder_info);
+    a_listing.highest_bid = price;
+    a_listing.highest_bidder = sender_address_raw.clone();
     listing(&mut deps.storage).save(listing_key.as_bytes(), &a_listing)?;
 
     let attributes = vec![
-        Attribute { key: "action".to_string(), value: "vote_casted".to_string(), },
+        Attribute { key: "action".to_string(), value: "bidden".to_string(), },
         Attribute { key: "listing_id".to_string(), value:  listing_id.to_string(), },
-        Attribute { key: "weight".to_string(), value: weight.to_string(), },
-        Attribute { key: "voter".to_string(), value: info.sender.to_string(), },
     ];
 
     let r = HandleResponse {
@@ -443,6 +452,31 @@ fn send_tokens<A: Api>(
             from_address: from_human,
             to_address: to_human,
             amount,
+        })],
+        attributes,
+        data: None,
+    };
+    Ok(r)
+}
+
+fn send_nft<A: Api>(
+    api: &A,
+    from_address: &CanonicalAddr,
+    to_address: &CanonicalAddr,
+    token_id: String,
+    denom: String,
+    action: &str,
+) -> HandleResult {
+    let from_human = api.human_address(from_address)?;
+    let to_human = api.human_address(to_address)?;
+    let attributes = vec![Attribute { key: "action".to_string(), value: action.to_string(), }, Attribute { key: "to".to_string(), value: to_human.to_string(), },];
+
+    let r = HandleResponse {
+        messages: vec![CosmosMsg::Nft(NftMsg::Transfer {
+            sender: from_human,
+            recipient: to_human,
+            id: token_id.to_string(),
+            denom: denom.to_string(),
         })],
         attributes,
         data: None,
@@ -480,7 +514,8 @@ fn query_listing<S: Storage, A: Api, Q: Querier>(
     let resp = ListingResponse {
         creator: deps.api.human_address(&listing.creator).unwrap(),
         status: listing.status,
-        quorum_percentage: listing.quorum_percentage,
+        highest_bid: listing.highest_bid,
+        highest_bidder: deps.api.human_address(&listing.highest_bidder).unwrap(),
         end_height: Some(listing.end_height),
         start_height: listing.start_height,
         description: listing.description,
