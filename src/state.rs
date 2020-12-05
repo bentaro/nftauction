@@ -22,7 +22,6 @@ pub struct State {
 pub struct TokenManager {
     pub token_balance: Uint128,             // total staked balance
     pub locked_tokens: Vec<(u64, Uint128)>, //maps listing_id to weight voted
-    pub locked_nfts: Vec<(u64, String)>,
     pub participated_bids: Vec<u64>,       // listing_id
 }
 
@@ -33,7 +32,7 @@ pub struct Bidder {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub enum ListingStatus {
+pub enum BidStatus {
     InProgress,
     Tally,
     Passed,
@@ -47,6 +46,7 @@ pub struct Listing {
     pub creator: CanonicalAddr,
     pub status: BidStatus,
     pub highest_bid: Uint128,
+    pub highest_bidder: CanonicalAddr,
     pub minimum_bid : Uint128,
     pub bidders : Vec<CanonicalAddr>,
     pub bidders_info : Vec<Bidder>,
