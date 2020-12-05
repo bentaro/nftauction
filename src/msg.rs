@@ -1,4 +1,4 @@
-use crate::state::ListingStatus;
+use crate::state::BidStatus;
 use cosmwasm_std::{HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -19,14 +19,12 @@ pub enum HandleMsg {
         amount: Option<Uint128>,
     },
     List {
-        token_id: String,
-        denom: String,
         minimum_bid : Uint128,
         start_height: Option<u64>,
         end_height: Option<u64>,
         description: String,
     },
-    CloseList {
+    CloseBid {
         listing_id: u64,
     },
     // GetNft {
@@ -46,8 +44,9 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct ListingResponse {
     pub creator: HumanAddr,
-    pub status: ListingStatus,
-    pub quorum_percentage: Option<u8>,
+    pub status: BidStatus,
+    pub highest_bid: Uint128,
+    pub highest_bidder: HumanAddr,
     pub end_height: Option<u64>,
     pub start_height: Option<u64>,
     pub description: String,
