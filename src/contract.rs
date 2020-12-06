@@ -262,17 +262,17 @@ pub fn end_listing<S: Storage, A: Api, Q: Querier>(
         ));
     }
 
-    if a_listing.status != BidStatus::InProgress {
-        return Err(StdError::generic_err("Listing is not in progress"));
-    }
-
-    if a_listing.start_height.is_some() && a_listing.start_height.unwrap() > env.block.height {
-        return Err(StdError::generic_err("Voting period has not started."));
-    }
-
-    if a_listing.end_height > env.block.height {
-        return Err(StdError::generic_err("Voting period has not expired."));
-    }
+    // if a_listing.status != BidStatus::InProgress {
+    //     return Err(StdError::generic_err("Listing is not in progress"));
+    // }
+    //
+    // if a_listing.start_height.is_some() && a_listing.start_height.unwrap() > env.block.height {
+    //     return Err(StdError::generic_err("Listing period has not started."));
+    // }
+    //
+    // if a_listing.end_height > env.block.height {
+    //     return Err(StdError::generic_err("Listing period has not expired."));
+    // }
 
     let mut rejected_reason = "";
     let mut passed = false;
@@ -285,26 +285,28 @@ pub fn end_listing<S: Storage, A: Api, Q: Querier>(
         a_listing.highest_bidder = a_listing.creator.clone();
         a_listing.status = BidStatus::Rejected;
     }
+
     listing(&mut deps.storage).save(key.as_bytes(), &a_listing)?;
 
-    let creator_address = &a_listing.creator.clone();
-    let bidder_address = &a_listing.highest_bidder.clone();
+    let creator_address = a_listing.creator.clone();
+    let bidder_address = a_listing.highest_bidder.clone();
     let creator_key = creator_address.as_slice();
     let bidder_key = bidder_address.as_slice();
-    let token_id = &a_listing.token_id;
-    let denom = &a_listing.denom;
-    let price = &a_listing.highest_bid;
+    let token_id = a_listing.token_id;
+    let denom = a_listing.denom;
+    let price = a_listing.highest_bid;
 
     let mut creator_token_manager = bank_read(&deps.storage).may_load(creator_key)?.unwrap_or_default();
-    let mut bidder_token_manager = bank_read(&deps.storage).may_load(bidder_key)?.unwrap_or_default();
-
-    bidder_token_manager.token_balance = Uint128::from(creator_token_manager.token_balance.u128() - price.u128());
     creator_token_manager.token_balance = creator_token_manager.token_balance + price;
-
-    bank(&mut deps.storage).save(bidder_key, &bidder_token_manager)?;
     bank(&mut deps.storage).save(creator_key, &creator_token_manager)?;
 
+    let mut bidder_token_manager = bank_read(&deps.storage).may_load(bidder_key)?.unwrap_or_default();
+    bidder_token_manager.token_balance = Uint128::from(creator_token_manager.token_balance.u128() - price.u128());
+    bank(&mut deps.storage).save(bidder_key, &bidder_token_manager)?;
+
+
     let contract_address_raw = deps.api.canonical_address(&env.contract.address)?;
+    let bidder_address = a_listing.highest_bidder.clone();
     send_nft(
         &deps.api,
         &contract_address_raw,
@@ -380,7 +382,7 @@ pub fn bid<S: Storage, A: Api, Q: Querier>(
     let bank_key = sender_address_raw.as_slice();
     let state = config_read(&deps.storage).load()?;
 
-    if listing_id == 0 || state.listing_count > listing_id {
+    if listing_id == 0 || state.listing_count < listing_id {
         return Err(StdError::generic_err("Listing does not exist"));
     }
 
