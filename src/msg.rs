@@ -43,6 +43,8 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct ListingResponse {
+    pub token_id: String,
+    pub denom: String,
     pub creator: HumanAddr,
     pub status: BidStatus,
     pub highest_bid: Uint128,

@@ -13,7 +13,7 @@ use cosmwasm_std::{
 };
 
 
-pub const VOTING_TOKEN: &str = "voting_token";
+// pub const VOTING_TOKEN: &str = "voting_token";
 pub const DEFAULT_END_HEIGHT_BLOCKS: &u64 = &100_800_u64;
 const MIN_STAKE_AMOUNT: u128 = 1;
 const MIN_DESC_LENGTH: usize = 3;
@@ -22,7 +22,7 @@ const MAX_DESC_LENGTH: usize = 64;
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
-    //info: MessageInfo,
+    info: MessageInfo,
     msg: InitMsg,
 ) -> InitResult {
     let state = State {
@@ -186,7 +186,8 @@ pub fn create_listing<S: Storage, A: Api, Q: Querier>(
     start_height: Option<u64>,
     end_height: Option<u64>,
     description: String,
-) -> StdResult<HandleResponse> {
+) -> HandleResult {
+
     validate_end_height(end_height, env.clone())?;
     validate_description(&description)?;
 
@@ -197,11 +198,10 @@ pub fn create_listing<S: Storage, A: Api, Q: Querier>(
 
     let sender_address_raw = deps.api.canonical_address(&info.sender)?;
 
-    // suspicious if work fine
     let sent_nfts = info
         .sent_nfts
         .iter()
-        .next()
+        .nth(0)
         .unwrap();
 
     let token_id = sent_nfts.id.to_string();
@@ -218,10 +218,10 @@ pub fn create_listing<S: Storage, A: Api, Q: Querier>(
         bidders: vec![],
         bidders_info: vec![],
         start_height,
-        end_height: end_height.unwrap_or(env.block.height + *DEFAULT_END_HEIGHT_BLOCKS),
+        end_height: end_height.unwrap_or(env.block.height + DEFAULT_END_HEIGHT_BLOCKS),
         description,
     };
-
+    //
     let key = state.listing_count.to_string();
     listing(&mut deps.storage).save(key.as_bytes(), &new_listing)?;
 
@@ -231,14 +231,16 @@ pub fn create_listing<S: Storage, A: Api, Q: Querier>(
         messages: vec![],
         attributes : vec![
             Attribute { key:"action".to_string(), value:"create_listing".to_string(), },
-            Attribute { key: "creator".to_string(), value: deps.api.human_address(&new_listing.creator)?.to_string(), },
+            // Attribute { key: "creator".to_string(), value: deps.api.human_address(&new_listing.creator)?.to_string(), },
             Attribute { key: "listing_id".to_string(), value: listing_id.to_string(), },
-            Attribute { key: "end_height".to_string(), value: new_listing.end_height.to_string(), },
-            Attribute { key: "start_height".to_string(), value: start_height.unwrap_or(0).to_string(), },
+            // Attribute { key: "end_height".to_string(), value: new_listing.end_height.to_string(), },
+            // Attribute { key: "start_height".to_string(), value: start_height.unwrap_or(0).to_string(), },
         ],
         data: Some(to_binary(&CreateListingResponse { listing_id })?),
     };
+
     Ok(r)
+
 }
 
 /*
@@ -492,7 +494,6 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&config_read(&_deps.storage).load()?),
-
         QueryMsg::TokenStake { address } => token_balance(_deps, address),
         QueryMsg::Listing { listing_id } => query_listing(_deps, listing_id),
     }
@@ -512,6 +513,8 @@ fn query_listing<S: Storage, A: Api, Q: Querier>(
     .unwrap();
 //listingオブジェクトの情報とメタデータからオブジェクト生成
     let resp = ListingResponse {
+        token_id: listing.token_id,
+        denom: listing.denom,
         creator: deps.api.human_address(&listing.creator).unwrap(),
         status: listing.status,
         highest_bid: listing.highest_bid,

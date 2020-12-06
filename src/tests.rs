@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::contract::{handle, init, query, VOTING_TOKEN};
-    use crate::msg::{HandleMsg, InitMsg, PollResponse, QueryMsg};
+    use crate::msg::{HandleMsg, InitMsg, ListingResponse, QueryMsg};
     use crate::state::{config_read, State};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
     use cosmwasm_std::{
@@ -54,32 +54,32 @@ mod tests {
                     .api
                     .canonical_address(&HumanAddr::from(TEST_CREATOR))
                     .unwrap(),
-                poll_count: 0,
+                listing_count: 0,
                 staked_tokens: Uint128::zero(),
             }
         );
     }
 
     #[test]
-    fn poll_not_found() {
+    fn listing_not_found() {
         let mut deps = mock_dependencies(20, &[]);
         mock_init(&mut deps);
 
-        let res = query(&deps, QueryMsg::Poll { poll_id: 1 });
+        let res = query(&deps, QueryMsg::Listing { listing_id: 1 });
 
         match res {
-            Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "Poll does not exist"),
+            Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "Listing does not exist"),
             Err(e) => panic!("Unexpected error: {:?}", e),
             _ => panic!("Must return error"),
         }
     }
 
     #[test]
-    fn fails_create_poll_invalid_quorum_percentage() {
+    fn fails_create_listing_invalid_quorum_percentage() {
         let mut deps = mock_dependencies(20, &[]);
         let env = mock_env("voter", &coins(11, VOTING_TOKEN));
 
-        let msg = create_poll_msg(101, "test".to_string(), None, None);
+        let msg = create_listing_msg(101, "test".to_string(), None, None);
 
         let res = handle(&mut deps, env, msg);
 
@@ -93,11 +93,11 @@ mod tests {
     }
 
     #[test]
-    fn fails_create_poll_invalid_description() {
+    fn fails_create_listing_invalid_description() {
         let mut deps = mock_dependencies(20, &[]);
         let env = mock_env(TEST_VOTER, &coins(11, VOTING_TOKEN));
 
-        let msg = create_poll_msg(30, "a".to_string(), None, None);
+        let msg = create_listing_msg(30, "a".to_string(), None, None);
 
         match handle(&mut deps, env.clone(), msg) {
             Ok(_) => panic!("Must return error"),
@@ -105,7 +105,7 @@ mod tests {
             Err(_) => panic!("Unknown error"),
         }
 
-        let msg = create_poll_msg(
+        let msg = create_listing_msg(
             100,
             "01234567890123456789012345678901234567890123456789012345678901234".to_string(),
             None,
@@ -119,13 +119,13 @@ mod tests {
         }
     }
 
-    fn create_poll_msg(
+    fn create_listing_msg(
         quorum_percentage: u8,
         description: String,
         start_height: Option<u64>,
         end_height: Option<u64>,
     ) -> HandleMsg {
-        let msg = HandleMsg::CreatePoll {
+        let msg = HandleMsg::CreateListing {
             quorum_percentage: Some(quorum_percentage),
             description,
             start_height,
@@ -135,16 +135,16 @@ mod tests {
     }
 
     #[test]
-    fn happy_days_create_poll() {
+    fn happy_days_create_listing() {
         let mut deps = mock_dependencies(20, &[]);
         mock_init(&mut deps);
         let env = mock_env_height(TEST_CREATOR, &coins(2, VOTING_TOKEN), 0, 10000);
 
         let quorum = 30;
-        let msg = create_poll_msg(quorum, "test".to_string(), None, None);
+        let msg = create_listing_msg(quorum, "test".to_string(), None, None);
 
         let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
-        assert_create_poll_result(
+        assert_create_listing_result(
             1,
             quorum,
             DEFAULT_END_HEIGHT,
@@ -156,16 +156,16 @@ mod tests {
     }
 
     #[test]
-    fn create_poll_no_quorum() {
+    fn create_listing_no_quorum() {
         let mut deps = mock_dependencies(20, &[]);
         mock_init(&mut deps);
         let env = mock_env_height(TEST_CREATOR, &coins(2, VOTING_TOKEN), 0, 10000);
 
         let quorum = 0;
-        let msg = create_poll_msg(quorum, "test".to_string(), None, None);
+        let msg = create_listing_msg(quorum, "test".to_string(), None, None);
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        assert_create_poll_result(
+        assert_create_listing_result(
             1,
             quorum,
             DEFAULT_END_HEIGHT,
@@ -177,21 +177,21 @@ mod tests {
     }
 
     #[test]
-    fn fails_end_poll_before_end_height() {
+    fn fails_end_listing_before_end_height() {
         let mut deps = mock_dependencies(20, &[]);
         mock_init(&mut deps);
         let env = mock_env_height(TEST_CREATOR, &coins(2, VOTING_TOKEN), 0, 10000);
 
-        let msg = create_poll_msg(0, "test".to_string(), None, Some(10001));
+        let msg = create_listing_msg(0, "test".to_string(), None, Some(10001));
 
         let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
-        assert_create_poll_result(1, 0, 10001, 0, TEST_CREATOR, handle_res, &mut deps);
+        assert_create_listing_result(1, 0, 10001, 0, TEST_CREATOR, handle_res, &mut deps);
 
-        let res = query(&deps, QueryMsg::Poll { poll_id: 1 }).unwrap();
-        let value: PollResponse = from_binary(&res).unwrap();
+        let res = query(&deps, QueryMsg::Listing { listing_id: 1 }).unwrap();
+        let value: ListingResponse = from_binary(&res).unwrap();
         assert_eq!(Some(10001), value.end_height);
 
-        let msg = HandleMsg::EndPoll { poll_id: 1 };
+        let msg = HandleMsg::EndListing { listing_id: 1 };
 
         let handle_res = handle(&mut deps, env.clone(), msg);
 
@@ -205,7 +205,7 @@ mod tests {
     }
 
     #[test]
-    fn happy_days_end_poll() {
+    fn happy_days_end_listing() {
         const POLL_END_HEIGHT: u64 = 1000;
         const POLL_ID: u64 = 1;
         let stake_amount = 1000;
@@ -219,7 +219,7 @@ mod tests {
             10000,
         );
 
-        let msg = create_poll_msg(
+        let msg = create_listing_msg(
             0,
             "test".to_string(),
             None,
@@ -228,7 +228,7 @@ mod tests {
 
         let handle_res = handle(&mut deps, creator_env.clone(), msg).unwrap();
 
-        assert_create_poll_result(
+        assert_create_listing_result(
             1,
             0,
             creator_env.block.height + 1,
@@ -245,7 +245,7 @@ mod tests {
         assert_stake_tokens_result(stake_amount, Some(1), handle_res, &mut deps);
 
         let msg = HandleMsg::CastVote {
-            poll_id: 1,
+            listing_id: 1,
             vote: "yes".to_string(),
             weight: Uint128::from(stake_amount),
         };
@@ -255,7 +255,7 @@ mod tests {
             handle_res.log,
             vec![
                 log("action", "vote_casted"),
-                log("poll_id", POLL_ID),
+                log("listing_id", POLL_ID),
                 log("weight", "1000"),
                 log("voter", TEST_VOTER),
             ]
@@ -263,15 +263,15 @@ mod tests {
 
         creator_env.block.height = &creator_env.block.height + 1;
 
-        let msg = HandleMsg::EndPoll { poll_id: 1 };
+        let msg = HandleMsg::EndListing { listing_id: 1 };
 
         let handle_res = handle(&mut deps, creator_env.clone(), msg).unwrap();
 
         assert_eq!(
             handle_res.log,
             vec![
-                log("action", "end_poll"),
-                log("poll_id", "1"),
+                log("action", "end_listing"),
+                log("listing_id", "1"),
                 log("rejected_reason", ""),
                 log("passed", "true"),
             ]
@@ -279,16 +279,16 @@ mod tests {
     }
 
     #[test]
-    fn end_poll_zero_quorum() {
+    fn end_listing_zero_quorum() {
         let mut deps = mock_dependencies(20, &coins(1000, VOTING_TOKEN));
         mock_init(&mut deps);
         let mut env = mock_env_height(TEST_CREATOR, &coins(2, VOTING_TOKEN), 1000, 10000);
 
-        let msg = create_poll_msg(0, "test".to_string(), None, Some(env.block.height + 1));
+        let msg = create_listing_msg(0, "test".to_string(), None, Some(env.block.height + 1));
 
         let handle_res = handle(&mut deps, env.clone(), msg).unwrap();
-        assert_create_poll_result(1, 0, 1001, 0, TEST_CREATOR, handle_res, &mut deps);
-        let msg = HandleMsg::EndPoll { poll_id: 1 };
+        assert_create_listing_result(1, 0, 1001, 0, TEST_CREATOR, handle_res, &mut deps);
+        let msg = HandleMsg::EndListing { listing_id: 1 };
         env.block.height = &env.block.height + 2;
 
         let handle_res = handle(&mut deps, env.clone(), msg).unwrap();
@@ -296,8 +296,8 @@ mod tests {
         assert_eq!(
             handle_res.log,
             vec![
-                log("action", "end_poll"),
-                log("poll_id", "1"),
+                log("action", "end_listing"),
+                log("listing_id", "1"),
                 log("rejected_reason", "Quorum not reached"),
                 log("passed", "false"),
             ]
@@ -305,12 +305,12 @@ mod tests {
     }
 
     #[test]
-    fn end_poll_quorum_rejected() {
+    fn end_listing_quorum_rejected() {
         let mut deps = mock_dependencies(20, &coins(100, VOTING_TOKEN));
         mock_init(&mut deps);
         let mut creator_env = mock_env(TEST_CREATOR, &coins(2, VOTING_TOKEN));
 
-        let msg = create_poll_msg(
+        let msg = create_listing_msg(
             30,
             "test".to_string(),
             None,
@@ -321,9 +321,9 @@ mod tests {
         assert_eq!(
             handle_res.log,
             vec![
-                log("action", "create_poll"),
+                log("action", "create_listing"),
                 log("creator", TEST_CREATOR),
-                log("poll_id", "1"),
+                log("listing_id", "1"),
                 log("quorum_percentage", "30"),
                 log("end_height", "12346"),
                 log("start_height", "0"),
@@ -338,7 +338,7 @@ mod tests {
         assert_stake_tokens_result(stake_amount, Some(1), handle_res, &mut deps);
 
         let msg = HandleMsg::CastVote {
-            poll_id: 1,
+            listing_id: 1,
             vote: "yes".to_string(),
             weight: Uint128::from(10u128),
         };
@@ -348,13 +348,13 @@ mod tests {
             handle_res.log,
             vec![
                 log("action", "vote_casted"),
-                log("poll_id", "1"),
+                log("listing_id", "1"),
                 log("weight", "10"),
                 log("voter", TEST_VOTER),
             ]
         );
 
-        let msg = HandleMsg::EndPoll { poll_id: 1 };
+        let msg = HandleMsg::EndListing { listing_id: 1 };
 
         creator_env.block.height = &creator_env.block.height + 2;
 
@@ -362,8 +362,8 @@ mod tests {
         assert_eq!(
             handle_res.log,
             vec![
-                log("action", "end_poll"),
-                log("poll_id", "1"),
+                log("action", "end_listing"),
+                log("listing_id", "1"),
                 log("rejected_reason", "Quorum not reached"),
                 log("passed", "false"),
             ]
@@ -371,14 +371,14 @@ mod tests {
     }
 
     #[test]
-    fn end_poll_nay_rejected() {
+    fn end_listing_nay_rejected() {
         let voter1_stake = 100;
         let voter2_stake = 1000;
         let mut deps = mock_dependencies(20, &coins(voter1_stake, VOTING_TOKEN));
         mock_init(&mut deps);
         let mut creator_env = mock_env(TEST_CREATOR, &coins(2, VOTING_TOKEN));
 
-        let msg = create_poll_msg(
+        let msg = create_listing_msg(
             10,
             "test".to_string(),
             None,
@@ -389,9 +389,9 @@ mod tests {
         assert_eq!(
             handle_res.log,
             vec![
-                log("action", "create_poll"),
+                log("action", "create_listing"),
                 log("creator", TEST_CREATOR),
-                log("poll_id", "1"),
+                log("listing_id", "1"),
                 log("quorum_percentage", "10"),
                 log("end_height", "12346"),
                 log("start_height", "0"),
@@ -412,22 +412,22 @@ mod tests {
 
         let env = mock_env(TEST_VOTER_2, &[]);
         let msg = HandleMsg::CastVote {
-            poll_id: 1,
+            listing_id: 1,
             vote: "no".to_string(),
             weight: Uint128::from(voter2_stake),
         };
         let handle_res = handle(&mut deps, env, msg).unwrap();
         assert_cast_vote_success(TEST_VOTER_2, voter2_stake, 1, handle_res);
 
-        let msg = HandleMsg::EndPoll { poll_id: 1 };
+        let msg = HandleMsg::EndListing { listing_id: 1 };
 
         creator_env.block.height = &creator_env.block.height + 2;
         let handle_res = handle(&mut deps, creator_env.clone(), msg.clone()).unwrap();
         assert_eq!(
             handle_res.log,
             vec![
-                log("action", "end_poll"),
-                log("poll_id", "1"),
+                log("action", "end_listing"),
+                log("listing_id", "1"),
                 log("rejected_reason", "Threshold not reached"),
                 log("passed", "false"),
             ]
@@ -435,14 +435,14 @@ mod tests {
     }
 
     #[test]
-    fn fails_end_poll_before_start_height() {
+    fn fails_end_listing_before_start_height() {
         let mut deps = mock_dependencies(20, &[]);
         mock_init(&mut deps);
         let env = mock_env_height(TEST_CREATOR, &coins(2, VOTING_TOKEN), 0, 10000);
 
         let start_height = 1001;
         let quorum_percentage = 30;
-        let msg = create_poll_msg(
+        let msg = create_listing_msg(
             quorum_percentage,
             "test".to_string(),
             Some(start_height),
@@ -450,7 +450,7 @@ mod tests {
         );
 
         let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
-        assert_create_poll_result(
+        assert_create_listing_result(
             1,
             quorum_percentage,
             DEFAULT_END_HEIGHT,
@@ -459,7 +459,7 @@ mod tests {
             handle_res,
             &mut deps,
         );
-        let msg = HandleMsg::EndPoll { poll_id: 1 };
+        let msg = HandleMsg::EndListing { listing_id: 1 };
 
         let handle_res = handle(&mut deps, env.clone(), msg);
 
@@ -478,10 +478,10 @@ mod tests {
         mock_init(&mut deps);
         let env = mock_env_height(TEST_CREATOR, &coins(2, VOTING_TOKEN), 0, 10000);
 
-        let msg = create_poll_msg(0, "test".to_string(), None, None);
+        let msg = create_listing_msg(0, "test".to_string(), None, None);
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        assert_create_poll_result(
+        assert_create_listing_result(
             1,
             0,
             DEFAULT_END_HEIGHT,
@@ -493,7 +493,7 @@ mod tests {
 
         let env = mock_env(TEST_VOTER, &coins(11, VOTING_TOKEN));
         let msg = HandleMsg::CastVote {
-            poll_id: 1,
+            listing_id: 1,
             vote: "yes".to_string(),
             weight: Uint128::from(1u128),
         };
@@ -518,10 +518,10 @@ mod tests {
 
         let quorum_percentage = 30;
 
-        let msg = create_poll_msg(quorum_percentage, "test".to_string(), None, None);
+        let msg = create_listing_msg(quorum_percentage, "test".to_string(), None, None);
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        assert_create_poll_result(
+        assert_create_listing_result(
             1,
             quorum_percentage,
             DEFAULT_END_HEIGHT,
@@ -540,7 +540,7 @@ mod tests {
         let env = mock_env(TEST_VOTER, &coins(11, VOTING_TOKEN));
         let weight = 10u128;
         let msg = HandleMsg::CastVote {
-            poll_id: 1,
+            listing_id: 1,
             vote: "yes".to_string(),
             weight: Uint128::from(weight),
         };
@@ -569,7 +569,7 @@ mod tests {
                     .api
                     .canonical_address(&HumanAddr::from(TEST_CREATOR))
                     .unwrap(),
-                poll_count: 0,
+                listing_count: 0,
                 staked_tokens: Uint128::from(11u128),
             }
         );
@@ -600,7 +600,7 @@ mod tests {
                     .api
                     .canonical_address(&HumanAddr::from(TEST_CREATOR))
                     .unwrap(),
-                poll_count: 0,
+                listing_count: 0,
                 staked_tokens: Uint128::zero(),
             }
         );
@@ -660,10 +660,10 @@ mod tests {
         let env = mock_env_height(TEST_CREATOR, &coins(2, VOTING_TOKEN), 0, 10000);
 
         let quorum_percentage = 30;
-        let msg = create_poll_msg(quorum_percentage, "test".to_string(), None, None);
+        let msg = create_listing_msg(quorum_percentage, "test".to_string(), None, None);
         let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
 
-        assert_create_poll_result(
+        assert_create_listing_result(
             1,
             quorum_percentage,
             DEFAULT_END_HEIGHT,
@@ -681,7 +681,7 @@ mod tests {
 
         let weight = 1u128;
         let msg = HandleMsg::CastVote {
-            poll_id: 1,
+            listing_id: 1,
             vote: "yes".to_string(),
             weight: Uint128::from(weight),
         };
@@ -689,7 +689,7 @@ mod tests {
         assert_cast_vote_success(TEST_VOTER, weight, 1, handle_res);
 
         let msg = HandleMsg::CastVote {
-            poll_id: 1,
+            listing_id: 1,
             vote: "yes".to_string(),
             weight: Uint128::from(weight),
         };
@@ -703,12 +703,12 @@ mod tests {
     }
 
     #[test]
-    fn fails_cast_vote_without_poll() {
+    fn fails_cast_vote_without_listing() {
         let mut deps = mock_dependencies(20, &[]);
         mock_init(&mut deps);
 
         let msg = HandleMsg::CastVote {
-            poll_id: 0,
+            listing_id: 0,
             vote: "yes".to_string(),
             weight: Uint128::from(1u128),
         };
@@ -718,7 +718,7 @@ mod tests {
 
         match res {
             Ok(_) => panic!("Must return error"),
-            Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "Poll does not exist"),
+            Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "Listing does not exist"),
             Err(e) => panic!("Unexpected error: {:?}", e),
         }
     }
@@ -782,9 +782,9 @@ mod tests {
         }
     }
 
-    // helper to confirm the expected create_poll response
-    fn assert_create_poll_result(
-        poll_id: u64,
+    // helper to confirm the expected create_listing response
+    fn assert_create_listing_result(
+        listing_id: u64,
         quorum: u8,
         end_height: u64,
         start_height: u64,
@@ -795,16 +795,16 @@ mod tests {
         assert_eq!(
             handle_res.log,
             vec![
-                log("action", "create_poll"),
+                log("action", "create_listing"),
                 log("creator", creator),
-                log("poll_id", poll_id.to_string()),
+                log("listing_id", listing_id.to_string()),
                 log("quorum_percentage", quorum.to_string()),
                 log("end_height", end_height.to_string()),
                 log("start_height", start_height.to_string()),
             ]
         );
 
-        //confirm poll count
+        //confirm listing count
         let state = config_read(&deps.storage).load().unwrap();
         assert_eq!(
             state,
@@ -814,7 +814,7 @@ mod tests {
                     .api
                     .canonical_address(&HumanAddr::from(TEST_CREATOR))
                     .unwrap(),
-                poll_count: 1,
+                listing_count: 1,
                 staked_tokens: Uint128::zero(),
             }
         );
@@ -822,7 +822,7 @@ mod tests {
 
     fn assert_stake_tokens_result(
         staked_tokens: u128,
-        poll_count: Option<u64>,
+        listing_count: Option<u64>,
         handle_res: HandleResponse,
         deps: &mut Extern<MockStorage, MockApi, MockQuerier>,
     ) {
@@ -837,7 +837,7 @@ mod tests {
                     .api
                     .canonical_address(&HumanAddr::from(TEST_CREATOR))
                     .unwrap(),
-                poll_count: poll_count.unwrap_or_default(),
+                listing_count: listing_count.unwrap_or_default(),
                 staked_tokens: Uint128::from(staked_tokens),
             }
         );
@@ -846,14 +846,14 @@ mod tests {
     fn assert_cast_vote_success(
         voter: &str,
         weight: u128,
-        poll_id: u64,
+        listing_id: u64,
         handle_res: HandleResponse,
     ) {
         assert_eq!(
             handle_res.log,
             vec![
                 log("action", "vote_casted"),
-                log("poll_id", poll_id.to_string()),
+                log("listing_id", listing_id.to_string()),
                 log("weight", weight.to_string()),
                 log("voter", voter),
             ]

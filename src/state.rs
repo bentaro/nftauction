@@ -7,7 +7,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 static CONFIG_KEY: &[u8] = b"config";
-static LISTING_KEY: &[u8] = b"listings";
+static LISTING_KEY: &[u8] = b"listing";
 static BANK_KEY: &[u8] = b"bank";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
