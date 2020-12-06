@@ -1,5 +1,5 @@
 [package]
-name = "voting"
+name = "auction"
 version = "0.1.0"
 authors = ["bentaro <swd.ben@gmail.com>"]
 edition = "2018"
