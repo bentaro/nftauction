@@ -305,6 +305,10 @@ pub fn end_listing<S: Storage, A: Api, Q: Querier>(
     bank(&mut deps.storage).save(bidder_key, &bidder_token_manager)?;
 
 
+    for bidder in &a_listing.bidders {
+        unlock_tokens(deps, bidder, listing_id)?;
+    }
+
     let contract_address_raw = deps.api.canonical_address(&env.contract.address)?;
     let bidder_address = a_listing.highest_bidder.clone();
     send_nft(
@@ -314,25 +318,7 @@ pub fn end_listing<S: Storage, A: Api, Q: Querier>(
         token_id.to_string(),
         denom.to_string(),
         "approve",
-    );
-
-    for bidder in &a_listing.bidders {
-        unlock_tokens(deps, bidder, listing_id)?;
-    }
-
-    let attributes = vec![
-        Attribute { key: "action".to_string(), value: "end_listing".to_string(), },
-        Attribute { key: "listing_id".to_string(), value: listing_id.to_string(), },
-        Attribute { key: "rejected_reason".to_string(), value: rejected_reason.to_string(), },
-        Attribute { key: "passed".to_string(), value: passed.to_string(), },
-    ];
-
-    let r = HandleResponse {
-        messages: vec![],
-        attributes,
-        data: None,
-    };
-    Ok(r)
+    )
 }
 
 // unlock bidder's tokens in a given listing
